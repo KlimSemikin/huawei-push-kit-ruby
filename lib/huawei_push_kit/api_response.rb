@@ -15,7 +15,7 @@ module HuaweiPushKit
     end
 
     def body
-      JSON.parse(response.body)
+      response
     end
 
     private

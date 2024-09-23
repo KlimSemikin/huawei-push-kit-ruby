@@ -20,7 +20,7 @@ RSpec.describe HuaweiPushKit::Client do
 
   before do
     stub_request(:post, "https://oauth-login.cloud.huawei.com/oauth2/v3/token")
-      .to_return(status: 200, body: { access_token: "access_token" }.to_json)
+      .to_return(status: 200, body: { access_token: "access_token", expires_in: 3600 }.to_json)
   end
 
   describe "#send_push_notification" do

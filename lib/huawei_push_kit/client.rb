@@ -13,25 +13,28 @@ module HuaweiPushKit
     def initialize(client_id = ENV.fetch("HUAWEI_PUSH_KIT_CLIENT_ID"), client_secret = ENV.fetch("HUAWEI_PUSH_KIT_CLIENT_SECRET"))
       @client_id = client_id
       @client_secret = client_secret
+
+      fetch_access_token
+    end
+
+    def send_push(payload)
+      response = push_api_connection.post("/v1/#{client_id}/messages:send") do |req|
+        req.body = payload.to_json
+      end
+
+      ApiResponse.new(response)
     end
 
     def send_push_notification(device_token, title, body, type = nil, badge = nil, post_id = nil, comment_id = nil,
       chat_id = nil, avatar = nil)
-      response = push_api_connection.post("/v1/#{client_id}/messages:send") do |req|
-        req.body = build_notification_body(device_token, title, body, type, badge, post_id, comment_id, chat_id, avatar)
-      end
 
-      ApiResponse.new(response)
+      send_push(build_notification_body(device_token, title, body, type, badge, post_id, comment_id, chat_id, avatar))
     end
 
     def send_push_notification_to_topic(topic_name, title, body, type = nil, badge = nil, post_id = nil,
       comment_id = nil, chat_id = nil, avatar = nil)
-      response = push_api_connection.post("/v1/#{client_id}/messages:send") do |req|
-        req.body = build_topic_notification_body(topic_name, title, body, type, badge, post_id, comment_id, chat_id,
-          avatar)
-      end
 
-      ApiResponse.new(response)
+      send_push(build_topic_notification_body(topic_name, title, body, type, badge, post_id, comment_id, chat_id, avatar))
     end
 
     def subscribe_to_topic(topic_name, device_tokens)
@@ -60,7 +63,24 @@ module HuaweiPushKit
 
     private
 
-    attr_reader :client_id, :client_secret
+    attr_reader :client_id, :client_secret, :access_token, :access_token_expiry
+
+    def fetch_access_token
+      return if access_token_expiry && access_token_expiry > Time.now.utc + 300
+
+      response = oauth_connection.post("/oauth2/v3/token") do |req|
+        req.body = URI.encode_www_form({
+          grant_type: "client_credentials",
+          client_id:,
+          client_secret:
+        })
+      end
+
+      body = JSON.parse(response.body)
+
+      @access_token = body['access_token']
+      @access_token_expiry = Time.now.utc + body['expires_in']
+    end
 
     def build_topic_notification_body(topic_name, title, text, type = nil, badge = nil, post_id = nil,
       comment_id = nil, chat_id = nil, avatar = nil)
@@ -76,10 +96,10 @@ module HuaweiPushKit
                   comment_id:,
                   chat_id:,
                   avatar:
-                }.to_json,
+                },
           topic: topic_name
         }
-      }.to_json
+      }
     end
 
     def build_notification_body(device_token, title, text, type = nil, badge = nil, post_id = nil, comment_id = nil,
@@ -96,27 +116,17 @@ module HuaweiPushKit
                   comment_id:,
                   chat_id:,
                   avatar:
-                }.to_json,
+                },
           token: [
             device_token
           ]
         }
-      }.to_json
-    end
-
-    def access_token
-      response = oauth_connection.post("/oauth2/v3/token") do |req|
-        req.body = URI.encode_www_form({
-          grant_type: "client_credentials",
-          client_id:,
-          client_secret:
-        })
-      end
-
-      JSON.parse(response.body)["access_token"]
+      }
     end
 
     def push_api_connection
+      fetch_access_token
+
       Faraday.new(PUSH_API_URI) do |faraday|
         setup_connection(faraday, CONTENT_JSON, "Bearer #{access_token}")
       end
