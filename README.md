@@ -41,6 +41,30 @@ require 'huawei_push_kit'
 device_token = "<huawei_device_token>"
 client = HuaweiPushKit::Client.new
 
+# Send notification to a single Huawei device with custom payload
+client.send_push(
+  {
+    'validate_only' => false,
+    'message' =>
+    {
+      'android' => {
+        'notification' => {
+          'title' => 'message title',
+          'body' => 'message body'
+          'click_action' => { 'type' => 3 },
+          'badge' => {
+            'add_num' => 1,
+            'class' => 'com.huawei.codelabpush.MainActivity',
+            'set_num' => 10
+          }
+        },
+        'ttl' => '1000'
+      },
+      'token' => [device_token]
+    }
+  }
+)
+
 # Send notification to a single Huawei device
 client.send_push_notification(device_token, "Title", "Message")
 
